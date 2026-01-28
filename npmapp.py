@@ -1,52 +1,53 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 페이지 기본 설정
-st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
+# 1. 페이지 설정
+st.set_page_config(page_title="노벨피아 프롬프트 메이커", page_icon="🎨")
 
-# API 키 설정 (Streamlit Secrets에서 가져옵니다)
-# 절대 이 파일 안에 직접 API 키를 적지 마세요!
+# 2. API 키 설정 (Secrets 사용)
 try:
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     else:
-        st.error("API 키가 설정되지 않았습니다.")
+        st.error("API 키가 없습니다. 설정(Secrets)을 확인해주세요.")
 except Exception as e:
-    st.error(f"설정 오류: {e}")
+    st.error(f"오류 발생: {e}")
 
-# 모델 설정
-model = genai.GenerativeModel('gemini-1.5-pro')
+# 3. 프롬프트 깎는 노인(AI 모델) 설정
+# 여기에 대리님이 원하시는 '프롬프트 생성 규칙'을 입력합니다.
+SYSTEM_PROMPT = """
+당신은 NovelAI 및 Stable Diffusion 전용 프롬프트 생성기입니다.
+사용자가 한국어나 영어로 묘사를 입력하면, 그것을 고품질의 영어 태그(Danbooru style)로 변환하세요.
 
-st.title("🤖 AI 챗봇")
-st.markdown("자유롭게 대화해보세요.")
+[필수 규칙]
+1. 문장이 아니라 '단어, 단어, 단어' 형식으로 출력할 것.
+2. 항상 맨 앞에는 다음 퀄리티 태그를 붙일 것:
+   (masterpiece, best quality, ultra-detailed, 8k wallpaper), 
+3. 사용자의 묘사를 구체적인 시각적 태그로 확장할 것.
+4. 설명이나 잡담은 하지 말고 오직 '프롬프트'만 출력할 것.
+"""
 
-# 대화 기록 초기화
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+model = genai.GenerativeModel(
+    'gemini-1.5-pro',
+    system_instruction=SYSTEM_PROMPT
+)
 
-# 이전 대화 내용 표시
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# 4. 화면 구성
+st.title("🎨 노벨피아 프롬프트 메이커")
+st.markdown("그리고 싶은 캐릭터나 상황을 대충 적으세요. AI가 태그를 정리해줍니다.")
 
-# 사용자 입력 처리
-if prompt := st.chat_input("메시지를 입력하세요..."):
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# 입력창 (엔터 치면 바로 생성)
+user_input = st.text_input("예: 금발의 엘프 여왕, 숲 속 배경, 신비로운 분위기")
 
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
+if user_input:
+    with st.spinner("프롬프트 깎는 중..."):
         try:
-            response = model.generate_content([m["content"] for m in st.session_state.messages], stream=True)
-            for chunk in response:
-                if chunk.text:
-                    full_response += chunk.text
-                    message_placeholder.markdown(full_response + "▌")
-            message_placeholder.markdown(full_response)
-        except Exception as e:
-            full_response = "죄송합니다. 오류가 발생했습니다."
-            message_placeholder.markdown(full_response)
+            # AI에게 변환 요청
+            response = model.generate_content(user_input)
             
-    st.session_state.messages.append({"role": "model", "content": full_response})
+            # 결과 출력
+            st.success("생성 완료! 아래 코드를 복사해서 쓰세요.")
+            st.code(response.text, language="text") # 복사 버튼이 자동으로 생깁니다
+            
+        except Exception as e:
+            st.error("오류가 났어요. 잠시 후 다시 시도해주세요.")
